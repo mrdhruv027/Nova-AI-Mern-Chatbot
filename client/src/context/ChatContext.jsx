@@ -104,7 +104,8 @@ export const ChatProvider = ({ children }) => {
     const token = localStorage.getItem('nova_token');
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/ai/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
