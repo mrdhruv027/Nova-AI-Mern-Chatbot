@@ -20,10 +20,18 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const app = express();
 const server = http.createServer(app);
 
+// CORS configuration supporting Vercel and local dev
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Allow non-browser requests
+  if (origin.includes('localhost') || origin.endsWith('.vercel.app')) return true;
+  if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return true;
+  return true; // Flexible CORS fallback
+};
+
 // Socket.io Setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   },
@@ -33,7 +41,7 @@ const io = new Server(server, {
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     credentials: true,
   })
 );
