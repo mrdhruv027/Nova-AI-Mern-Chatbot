@@ -85,17 +85,22 @@ const loginUser = async (req, res, next) => {
     }
 
     if (getIsInMemory()) {
-      const user = mockStore.users.find((u) => u.email === email.toLowerCase());
+      let user = mockStore.users.find((u) => u.email === email.toLowerCase());
+      
+      // If user doesn't exist in memory, create a personalized user object for this session
       if (!user) {
-        // Automatically allow demo login if using demo account
-        const demoUser = mockStore.users[0];
-        const token = generateToken(demoUser._id);
-        return res.json({
-          success: true,
-          token,
-          user: demoUser,
-          message: 'Logged in successfully (Demo mode)',
-        });
+        const nameFromEmail = email.split('@')[0];
+        const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+        user = {
+          _id: `user_${Date.now()}`,
+          name: formattedName,
+          email: email.toLowerCase(),
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(formattedName)}`,
+          bio: 'AI Enthusiast & Explorer',
+          themePreference: 'dark',
+          createdAt: new Date(),
+        };
+        mockStore.users.push(user);
       }
 
       const token = generateToken(user._id);
