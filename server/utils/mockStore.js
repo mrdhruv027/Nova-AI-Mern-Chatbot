@@ -3,11 +3,11 @@ const mockStore = {
   users: [
     {
       _id: 'mock_user_1',
-      name: 'Demo Developer',
-      email: 'demo@novaai.com',
+      name: 'Dhruv',
+      email: 'dhruv@novaai.com',
       password: '$2a$10$wJtK2G5XN4m.HhV0E8l6fO8tT5l7H9y4jR3e2w1q0p9o8n7m6l5k4', // hashed "password123"
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      bio: 'Fullstack AI developer demo account.',
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=Dhruv',
+      bio: 'Fullstack AI developer',
       themePreference: 'dark',
       createdAt: new Date(),
     },
