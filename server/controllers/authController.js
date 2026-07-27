@@ -14,8 +14,10 @@ const registerUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please fill in all required fields' });
     }
 
+    const cleanEmail = String(email).toLowerCase().trim();
+
     if (getIsInMemory()) {
-      const existingUser = mockStore.users.find((u) => u.email === email.toLowerCase());
+      const existingUser = mockStore.users.find((u) => u.email === cleanEmail);
       if (existingUser) {
         return res.status(400).json({ success: false, message: 'User with this email already exists' });
       }
@@ -23,7 +25,7 @@ const registerUser = async (req, res, next) => {
       const newUser = {
         _id: `user_${Date.now()}`,
         name,
-        email: email.toLowerCase(),
+        email: cleanEmail,
         avatar: avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         bio: 'AI Enthusiast & Explorer',
         themePreference: 'dark',
@@ -40,14 +42,14 @@ const registerUser = async (req, res, next) => {
       });
     }
 
-    const userExists = await User.findOne({ email: email.toLowerCase() });
+    const userExists = await User.findOne({ email: cleanEmail });
     if (userExists) {
       return res.status(400).json({ success: false, message: 'User with this email already exists' });
     }
 
     const user = await User.create({
       name,
-      email,
+      email: cleanEmail,
       password,
       avatar: avatar || undefined,
     });
@@ -69,7 +71,8 @@ const registerUser = async (req, res, next) => {
       message: 'Account created successfully',
     });
   } catch (error) {
-    next(error);
+    console.error('Registration Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Registration Failed' });
   }
 };
 
@@ -84,17 +87,18 @@ const loginUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
     }
 
+    const cleanEmail = String(email).toLowerCase().trim();
+
     if (getIsInMemory()) {
-      let user = mockStore.users.find((u) => u.email === email.toLowerCase());
+      let user = mockStore.users.find((u) => u.email === cleanEmail);
       
-      // If user doesn't exist in memory, create a personalized user object for this session
       if (!user) {
-        const nameFromEmail = email.split('@')[0];
+        const nameFromEmail = cleanEmail.split('@')[0];
         const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
         user = {
           _id: `user_${Date.now()}`,
           name: formattedName,
-          email: email.toLowerCase(),
+          email: cleanEmail,
           avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(formattedName)}`,
           bio: 'AI Enthusiast & Explorer',
           themePreference: 'dark',
@@ -112,7 +116,7 @@ const loginUser = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: cleanEmail }).select('+password');
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
@@ -139,7 +143,8 @@ const loginUser = async (req, res, next) => {
       message: 'Logged in successfully',
     });
   } catch (error) {
-    next(error);
+    console.error('Login Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Login Failed' });
   }
 };
 
