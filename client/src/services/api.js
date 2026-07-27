@@ -1,12 +1,20 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const getApiBaseUrl = () => {
+  let url = import.meta.env.VITE_API_URL || 'https://nova-ai-mern-chatbot-1.onrender.com/api';
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  if (!url.endsWith('/api')) url += '/api';
+  return url;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 45000,
 });
 
 // Request Interceptor: Attach JWT Token
@@ -27,7 +35,6 @@ api.interceptors.response.use(
   (error) => {
     const message = error.response?.data?.message || error.message || 'Something went wrong';
     if (error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('nova_token');
       localStorage.removeItem('nova_user');
     }
