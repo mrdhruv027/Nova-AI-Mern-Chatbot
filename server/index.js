@@ -8,7 +8,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const { connectDB } = require('./config/db');
+const { connectDB, getIsInMemory, getMongoError } = require('./config/db');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
@@ -57,6 +57,7 @@ connectDB();
 
 // Root Welcome Endpoint
 app.get('/', (req, res) => {
+  const isInMemory = getIsInMemory();
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -67,17 +68,17 @@ app.get('/', (req, res) => {
           .card { background: #1e293b; padding: 2rem 3rem; border-radius: 1rem; border: 1px solid #334155; text-align: center; max-width: 500px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
           h1 { color: #38bdf8; margin-bottom: 0.5rem; }
           p { color: #94a3b8; line-height: 1.6; }
-          .status { display: inline-block; background: #059669; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; }
+          .status { display: inline-block; background: ${isInMemory ? '#d97706' : '#059669'}; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; margin-bottom: 1rem; }
           a { color: #38bdf8; text-decoration: none; font-weight: 500; }
           a:hover { text-decoration: underline; }
         </style>
       </head>
       <body>
         <div class="card">
-          <div class="status">🟢 Server Online</div>
+          <div class="status">${isInMemory ? '🟠 RAM Memory Mode' : '🟢 Live MongoDB Connected'}</div>
           <h1>Nova AI Chatbot Backend</h1>
-          <p>This is the REST API backend server for Nova AI. The frontend React UI connects to this server to process chat requests.</p>
-          <p><a href="/api/health" target="_blank">Check API Health (/api/health)</a></p>
+          <p>This is the REST API backend server for Nova AI. Connected Database: <strong>${isInMemory ? 'In-Memory Fallback' : 'MongoDB Atlas'}</strong></p>
+          <p><a href="/api/db-status" target="_blank">Check Database Diagnostic (/api/db-status)</a></p>
         </div>
       </body>
     </html>
@@ -89,8 +90,19 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     app: 'Nova AI Chatbot Server',
+    databaseMode: getIsInMemory() ? 'In-Memory Fallback' : 'Live MongoDB Atlas Connected',
     timestamp: new Date(),
     env: process.env.NODE_ENV || 'development',
+  });
+});
+
+// DB Status Diagnostic Check
+app.get('/api/db-status', (req, res) => {
+  res.json({
+    connectedToMongoDBAtlas: !getIsInMemory(),
+    databaseMode: getIsInMemory() ? 'In-Memory RAM Mode' : 'Live MongoDB Atlas Connected',
+    mongoError: getMongoError(),
+    mongoUriProvided: !!(process.env.MONGODB_URI || process.env.MONGO_URI),
   });
 });
 
