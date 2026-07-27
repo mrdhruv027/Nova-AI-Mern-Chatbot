@@ -22,6 +22,35 @@ async function fetchImagePart(url) {
   }
 }
 
+// Clean and format Gemini history array to strictly satisfy Google Gemini's requirements:
+// 1. History MUST start with role 'user' (never 'model')
+// 2. Roles MUST alternate between 'user' and 'model'
+function formatGeminiHistory(rawMsgs) {
+  if (!rawMsgs || rawMsgs.length === 0) return [];
+
+  let formatted = rawMsgs
+    .filter((m) => m && m.content && String(m.content).trim() !== '')
+    .map((m) => ({
+      role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+      parts: [{ text: String(m.content) }],
+    }));
+
+  // Drop leading 'model' messages until the first message has role 'user'
+  while (formatted.length > 0 && formatted[0].role !== 'user') {
+    formatted.shift();
+  }
+
+  // Ensure alternating user/model pattern
+  const cleanHistory = [];
+  for (const item of formatted) {
+    if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].role !== item.role) {
+      cleanHistory.push(item);
+    }
+  }
+
+  return cleanHistory;
+}
+
 // @desc    Send message & stream AI response (SSE)
 // @route   POST /api/ai/chat
 // @access  Private
@@ -103,21 +132,18 @@ const streamChatResponse = async (req, res, next) => {
     if (geminiModel) {
       try {
         // Fetch chat history
-        let history = [];
+        let rawPastMsgs = [];
         if (getIsInMemory()) {
-          const pastMsgs = mockStore.messages.filter((m) => String(m.chatId) === String(chatId));
-          // Take last 10 messages for context
-          history = pastMsgs.slice(-10).map((m) => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-          }));
+          rawPastMsgs = mockStore.messages.filter((m) => String(m.chatId) === String(chatId));
         } else {
-          const pastMsgs = await Message.find({ chatId }).sort({ createdAt: 1 }).limit(12);
-          history = pastMsgs.map((m) => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }],
-          }));
+          rawPastMsgs = await Message.find({ chatId }).sort({ createdAt: 1 }).limit(12);
         }
+
+        // Format history cleanly for Google Gemini SDK
+        const formattedHistory = formatGeminiHistory(rawPastMsgs);
+
+        // Exclude the current message (which is sent via sendMessageStream)
+        const historyForSession = formattedHistory.slice(0, -1);
 
         // Multimodal image parts setup
         const promptParts = [{ text: userContent }];
@@ -132,7 +158,7 @@ const streamChatResponse = async (req, res, next) => {
 
         // Send streaming request
         const chatSession = geminiModel.startChat({
-          history: history.slice(0, -1), // exclude current prompt which is passed next
+          history: historyForSession,
           generationConfig: {
             maxOutputTokens: 2048,
             temperature: 0.7,
@@ -147,7 +173,7 @@ const streamChatResponse = async (req, res, next) => {
             const fallbackModel = getModel('gemini-flash-latest');
             if (fallbackModel) {
               const fallbackSession = fallbackModel.startChat({
-                history: history.slice(0, -1),
+                history: historyForSession,
                 generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
               });
               resultStream = await fallbackSession.sendMessageStream(promptParts);
@@ -168,7 +194,7 @@ const streamChatResponse = async (req, res, next) => {
         }
       } catch (err) {
         console.warn('Gemini Stream Error:', err.message);
-        
+
         if (err.message.includes('429') || err.message.includes('Quota exceeded')) {
           fullAssistantResponse = `⚠️ **Google Gemini API Quota Exceeded (HTTP 429)**\n\n` +
             `Your Google AI Studio free tier quota limit was reached. Please wait ~60 seconds before sending another message.`;
@@ -184,11 +210,11 @@ const streamChatResponse = async (req, res, next) => {
       // Demo Mode response generator when GEMINI_API_KEY is missing or invalid
       let mockAnswer = '';
       const promptLower = userContent.toLowerCase().trim();
-      
+
       if (promptLower === 'yes' || promptLower === 'ok' || promptLower === 'sure') {
         mockAnswer = `Great! I'm ready to assist you. Feel free to ask any question, paste code, or request help with your project!`;
-      } else if (promptLower.includes('temp')) {
-        mockAnswer = `"Temp" is a common abbreviation that usually stands for:\n1. **Temporary** (e.g. temporary files, \`temp\` variables in programming).\n2. **Temperature** (e.g. CPU temperature, weather).\n3. **Template** (e.g. UI/HTML template).`;
+      } else if (promptLower.includes('temp') || promptLower.includes('database')) {
+        mockAnswer = `A **Database** is an organized collection of structured information or data stored electronically in a computer system.\n\nKey Concepts:\n1. **MongoDB**: A NoSQL document database that stores data in JSON-like documents.\n2. **SQL (PostgreSQL / MySQL)**: Relational databases using tables with rows and columns.\n3. **Mongoose**: An ODM (Object Data Modeling) library for MongoDB and Node.js.`;
       } else {
         mockAnswer = `Hello! I received your query: "${userContent}".\n\n*(Note: Running in Nova AI Demo Mode. To activate real Gemini AI responses, paste your API Key from [Google AI Studio](https://aistudio.google.com/) into \`server/.env\` and restart the backend server).*`;
       }
